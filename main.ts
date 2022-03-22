@@ -13,6 +13,7 @@ const stockIllegalSymbols = /[\\/:|#^[\]]/g;
 interface LinePointer {
   lineNumber: number;
   text: string;
+  hasFrontmatterAlready: boolean;
 }
 
 interface FilenameHeadingSyncPluginSettings {
@@ -182,15 +183,23 @@ export default class FilenameHeadingSyncPlugin extends Plugin {
       const heading = this.findHeading(lines, start);
 
       if (heading !== null) {
-        if (this.sanitizeHeading(heading.text) !== sanitizedHeading) {
+        if (this.sanitizeHeading(heading.text) !== sanitizedHeading && heading.hasFrontmatterAlready == false) {
           this.replaceLineInFile(
             file,
             lines,
             heading.lineNumber,
-            `# ${sanitizedHeading}`,
+            `title: ${sanitizedHeading}`,
           );
         }
-      } else this.insertLineInFile(file, lines, start, `# ${sanitizedHeading}`);
+        if (heading.hasFrontmatterAlready == true) {
+          this.insertLineInFile(
+            file,
+            lines,
+            start + 1,
+            `title: ${sanitizedHeading}`,
+          );
+        }
+      } else this.insertLineInFile(file, lines, start, `---` + '\n' +`title: ${sanitizedHeading}` + '\n' + `---`);
     });
   }
 
@@ -201,38 +210,47 @@ export default class FilenameHeadingSyncPlugin extends Plugin {
    * @returns {number} zero-based index of the starting line of the note
    */
   findNoteStart(fileLines: string[]) {
-    // check for frontmatter by checking if first line is a divider ('---')
-    if (fileLines[0] === '---') {
-      // find end of frontmatter
-      // if no end is found, then it isn't really frontmatter and function will end up returning 0
-      for (let i = 1; i < fileLines.length; i++) {
-        if (fileLines[i] === '---') {
-          // end of frontmatter found, next line is start of note
-          return i + 1;
-        }
-      }
-    }
+    // signynt: removed lines so that it always starts at beginning
     return 0;
   }
 
-  /**
-   * Finds the first heading of the note file
-   *
-   * @param {string[]} fileLines array of the file's contents, line by line
-   * @param {number} startLine zero-based index of the starting line of the note
-   * @returns {LinePointer | null} LinePointer to heading or null if no heading found
-   */
-  findHeading(fileLines: string[], startLine: number): LinePointer | null {
+/**
+ * Finds the frontmatter if it exists
+ *
+ * @param {string[]} fileLines array of the file's contents, line by line
+ * @param {number} startLine zero-based index of the starting line of the note
+ * @returns {LinePointer | null} LinePointer to heading or null if no heading found
+ */
+findHeading(fileLines: string[], startLine: number): LinePointer | null {
+  // check for frontmatter by checking if first line is a divider ('---')
+  if (fileLines[0] === '---') {
+    // find end of frontmatter
+    // if no end is found, then it isn't really frontmatter and function will end up returning 0
+    for (let i = 1; i < fileLines.length; i++) {
+      if (fileLines[i] === '---') {
+        for (let i = startLine; i < fileLines.length; i++) {
+          if (fileLines[i].startsWith('title: ')) {
+            return {
+              lineNumber: i,
+              text: fileLines[i].substring(7),
+              hasFrontmatterAlready: false,
+            };
+          }
+        }
+      }
+    }
     for (let i = startLine; i < fileLines.length; i++) {
-      if (fileLines[i].startsWith('# ')) {
+      if (fileLines[i] !== 'title: ') {
         return {
           lineNumber: i,
-          text: fileLines[i].substring(2),
+          text: fileLines[i].substring(7),
+          hasFrontmatterAlready: true,
         };
       }
     }
-    return null; // no heading found
   }
+  return null;
+}
 
   sanitizeHeading(text: string) {
     // stockIllegalSymbols is a regExp object, but userIllegalSymbols is a list of strings and therefore they are handled separately.
@@ -344,14 +362,14 @@ class FilenameHeadingSyncSettingTab extends PluginSettingTab {
 
     containerEl.empty();
 
-    containerEl.createEl('h2', { text: 'Filename Heading Sync' });
+    containerEl.createEl('h2', { text: 'Filename Frontmatter Title Sync' });
     containerEl.createEl('p', {
       text:
-        'This plugin will overwrite the first heading found in a file with the filename.',
+        'This plugin will overwrite the first title: frontmatter found in a file with the filename.',
     });
     containerEl.createEl('p', {
       text:
-        'If no header is found, will insert a new one at the first line (after frontmatter).',
+        'If no title: frontmatter is found, it will insert a new one in the first line of the frontmatter.',
     });
 
     new Setting(containerEl)
@@ -416,7 +434,7 @@ class FilenameHeadingSyncSettingTab extends PluginSettingTab {
     containerEl.createEl('h2', { text: 'Manually Ignored Files' });
     containerEl.createEl('p', {
       text:
-        'You can ignore files from this plugin by using the "ignore this file" command',
+        'You can ignore files from this plugin by using the "ignore this file" comman.d',
     });
 
     // go over all ignored files and add them
