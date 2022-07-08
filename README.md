@@ -2,7 +2,7 @@
 
 > This project is a minor modification of [Obsidian Filename Heading Sync](https://github.com/dvcrn/obsidian-filename-heading-sync) by @dvcrn
 
-This is a Obsidian plugin to keep the filename and the first heading of a file in sync
+This is a Obsidian plugin to keep the filename and frontmatter `title:` field of a file in sync
 
 **Note**: This plugin will overwrite your first frontmatter field called `title:` the moment you open it, so this can be considered _destructive_.
 
